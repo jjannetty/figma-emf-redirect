@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Signing in…</title>
+<style>
+  body {
+    font-family: -apple-system, sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    height: 100vh; margin: 0; background: #fff; color: #333;
+  }
+  p { font-size: 14px; }
+</style>
+</head>
+<body>
+<p id="msg">Signing in to Google…</p>
+<script>
+  const hash = window.location.hash.slice(1);
+  const params = Object.fromEntries(
+    hash.split('&').filter(Boolean).map(p => {
+      const [k, ...v] = p.split('=');
+      return [decodeURIComponent(k), decodeURIComponent(v.join('='))];
+    })
+  );
+
+  if (params.access_token) {
+    if (window.opener) {
+      window.opener.postMessage(
+        { type: 'emf-oauth-token', token: params.access_token },
+        '*'
+      );
+    }
+    document.getElementById('msg').textContent = '✓ Signed in. You can close this window.';
+    setTimeout(() => window.close(), 1200);
+  } else if (params.error) {
+    if (window.opener) {
+      window.opener.postMessage(
+        { type: 'emf-oauth-error', error: params.error },
+        '*'
+      );
+    }
+    document.getElementById('msg').textContent = 'Error: ' + params.error + '. You can close this window.';
+  } else {
+    document.getElementById('msg').textContent = 'No token received. You can close this window.';
+  }
+</script>
+</body>
+</html>
