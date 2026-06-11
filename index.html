@@ -4,44 +4,58 @@
 <meta charset="utf-8">
 <title>Signing in…</title>
 <style>
-  body {
-    font-family: -apple-system, sans-serif;
-    display: flex; align-items: center; justify-content: center;
-    height: 100vh; margin: 0; background: #fff; color: #333;
-  }
-  p { font-size: 14px; }
+  body { font-family: -apple-system, sans-serif; display: flex; align-items: center;
+         justify-content: center; height: 100vh; margin: 0; background: #fff; color: #333; }
+  p { font-size: 14px; text-align: center; line-height: 1.8; }
+  .ok  { color: #188038; }
+  .err { color: #D93025; }
 </style>
 </head>
-<body>
-<p id="msg">Signing in to Google…</p>
+<body><p id="msg">Signing in to Google…</p>
 <script>
-  const hash = window.location.hash.slice(1);
-  const params = Object.fromEntries(
-    hash.split('&').filter(Boolean).map(p => {
-      const [k, ...v] = p.split('=');
-      return [decodeURIComponent(k), decodeURIComponent(v.join('='))];
-    })
-  );
+  function parseQS(s) {
+    return Object.fromEntries(
+      (s || '').split('&').filter(Boolean).map(p => {
+        const [k, ...v] = p.split('=');
+        return [decodeURIComponent(k), decodeURIComponent(v.join('='))];
+      })
+    );
+  }
 
-  if (params.access_token) {
-    if (window.opener) {
-      window.opener.postMessage(
-        { type: 'emf-oauth-token', token: params.access_token },
-        '*'
-      );
+  const hashParams   = parseQS(window.location.hash.slice(1));
+  const searchParams = parseQS(window.location.search.slice(1));
+
+  const token     = hashParams.access_token;
+  const error     = hashParams.error || searchParams.error;
+  const sessionId = hashParams.state || searchParams.state;
+
+  const msg = document.getElementById('msg');
+
+  async function relay(payload) {
+    if (!sessionId) return;
+    try {
+      await fetch('https://ntfy.sh/' + sessionId, {
+        method:  'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body:    JSON.stringify(payload),
+      });
+    } catch (e) {
+      msg.innerHTML = '<span class="err">Could not reach relay server.<br>Please try again.</span>';
     }
-    document.getElementById('msg').textContent = '✓ Signed in. You can close this window.';
-    setTimeout(() => window.close(), 1200);
-  } else if (params.error) {
-    if (window.opener) {
-      window.opener.postMessage(
-        { type: 'emf-oauth-error', error: params.error },
-        '*'
-      );
-    }
-    document.getElementById('msg').textContent = 'Error: ' + params.error + '. You can close this window.';
+  }
+
+  if (token) {
+    relay({ token })
+      .then(() => {
+        msg.innerHTML = '<span class="ok">✓ Signed in!</span><br>Return to Figma to complete the upload.';
+        setTimeout(() => window.close(), 2000);
+      });
+  } else if (error) {
+    relay({ error }).then(() => {
+      msg.innerHTML = '<span class="err">Error: ' + error + '</span><br>You can close this window.';
+    });
   } else {
-    document.getElementById('msg').textContent = 'No token received. You can close this window.';
+    msg.textContent = 'Nothing received — you can close this window.';
   }
 </script>
 </body>

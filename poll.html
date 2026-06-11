@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+<script>
+  // This page is loaded as a hidden iframe by the plugin.
+  // It polls localStorage (same origin as redirect page) for the OAuth token
+  // and postMessages it back to the plugin when found.
+
+  const sessionId = new URLSearchParams(window.location.search).get('session');
+  if (!sessionId) {
+    parent.postMessage({ type: 'emf-oauth-error', error: 'Missing session ID' }, '*');
+  } else {
+    const TIMEOUT = 5 * 60 * 1000; // 5 minutes
+    const started = Date.now();
+
+    function poll() {
+      if (Date.now() - started > TIMEOUT) {
+        parent.postMessage({ type: 'emf-oauth-error', error: 'Sign-in timed out' }, '*');
+        return;
+      }
+      const token = localStorage.getItem('emf_token_' + sessionId);
+      const error = localStorage.getItem('emf_error_' + sessionId);
+
+      if (token) {
+        localStorage.removeItem('emf_token_' + sessionId);
+        parent.postMessage({ type: 'emf-oauth-token', token }, '*');
+      } else if (error) {
+        localStorage.removeItem('emf_error_' + sessionId);
+        parent.postMessage({ type: 'emf-oauth-error', error }, '*');
+      } else {
+        setTimeout(poll, 600);
+      }
+    }
+    poll();
+  }
+</script>
+</body>
+</html>
